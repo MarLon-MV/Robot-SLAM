@@ -45,7 +45,7 @@ directamente con el nombre que quieras darle al workspace:
 
 ```bash
 sudo apt install -y git
-git clone <URL-del-repositorio> ~/mtrb_ws
+git clone https://github.com/MarLon-MV/Robot-SLAM.git ~/mtrb_ws
 cd ~/mtrb_ws
 ```
 
@@ -181,10 +181,12 @@ Argumentos útiles: `namespace` (r2), `navigation` (false = solo localizar/mapea
 Sin `map:=` se busca `map/map.yaml` del paquete instalado.
 
 Guardar mapas (con `mode:=mapping` en marcha; el directorio debe existir):
+
 ```bash
 ros2 service call /r2/slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '<ruta/base>'}}"
 ros2 service call /r2/slam_toolbox/serialize_map slam_toolbox/srv/SerializePoseGraph "{filename: '<ruta/base>'}"
 ```
+
 Guarda ambos: `.yaml/.pgm` para `mode:=map` y `.posegraph/.data` para ampliar.
 
 Visualización: se hará desde una interfaz web (pendiente). No se usa RViz.
