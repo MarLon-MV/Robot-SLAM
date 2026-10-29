@@ -1,4 +1,5 @@
-"""Single entry point for the MTRB robot (Create 3 + 2D LiDAR).
+"""
+Single entry point for the MTRB robot (Create 3 + 2D LiDAR).
 
   ros2 launch mtrb_bringup mtrb.launch.py mode:=map     map:=<map.yaml>
   ros2 launch mtrb_bringup mtrb.launch.py mode:=mapping [posegraph:=<base path>]
@@ -19,10 +20,9 @@ Layout: one function per subsystem (_state_publisher, _lidar, _ekf, _localizatio
 _navigation). _launch_setup only reads the arguments and picks which ones to start.
 """
 
-import os
 from dataclasses import dataclass
+import os
 
-import xacro
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, EmitEvent, LogInfo, OpaqueFunction,
@@ -36,6 +36,7 @@ from lifecycle_msgs.msg import Transition
 from mtrb_bringup.utils import (absolute_path, absolute_topic, is_true, validate_mode,
                                 validate_namespace)
 from nav2_common.launch import RewrittenYaml
+import xacro
 
 PKG = 'mtrb_bringup'
 DESCRIPTION_PKG = 'mtrb_description'
@@ -191,7 +192,8 @@ def _slam(s):
 
 
 def _navigation(s, nav_params):
-    """Nav2: planner, controller, behaviors, bt_navigator and velocity smoother.
+    """
+    Nav2: planner, controller, behaviors, bt_navigator and velocity smoother.
 
     cmd_vel_nav -> velocity_smoother -> /<ns>/cmd_vel (geometry_msgs/Twist in Jazzy).
     """

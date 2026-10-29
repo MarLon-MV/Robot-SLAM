@@ -1,7 +1,7 @@
 """Docstring check (pep257)."""
 
-import pytest
 from ament_pep257.main import main
+import pytest
 
 
 @pytest.mark.linter

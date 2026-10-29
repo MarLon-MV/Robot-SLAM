@@ -1,4 +1,5 @@
-"""Integration check: the launch file loads and declares its public arguments.
+"""
+Integration check: the launch file loads and declares its public arguments.
 
 Needs the workspace built and sourced (it looks up the installed package share).
 """
@@ -10,7 +11,7 @@ import pytest
 
 pytest.importorskip('launch_ros')
 
-from ament_index_python.packages import (  # noqa: E402
+from ament_index_python.packages import (  # noqa: E402, I100
     get_package_share_directory, PackageNotFoundError)
 
 REQUIRED_ARGS = {

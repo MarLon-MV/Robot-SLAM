@@ -1,12 +1,11 @@
 """Publish the dock pose once on /initialpose when AMCL is active, then exit."""
 
-import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from lifecycle_msgs.msg import State
 from lifecycle_msgs.srv import GetState
-from rclpy.node import Node
-
 from mtrb_bringup.utils import yaw_to_quaternion
+import rclpy
+from rclpy.node import Node
 
 # Initial uncertainty: 0.5 m std in x/y, ~15 deg std in yaw.
 COVARIANCE_XY = 0.25

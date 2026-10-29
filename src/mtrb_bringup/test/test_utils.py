@@ -3,9 +3,9 @@
 import math
 import os
 
-import pytest
 from mtrb_bringup.utils import (absolute_path, absolute_topic, is_true, validate_mode,
                                 validate_namespace, yaw_to_quaternion)
+import pytest
 
 
 @pytest.mark.parametrize('value', ['true', 'True', ' 1 ', 'yes', 'YES', True])

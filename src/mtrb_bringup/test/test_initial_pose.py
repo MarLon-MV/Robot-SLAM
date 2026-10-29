@@ -6,8 +6,8 @@ import pytest
 
 pytest.importorskip('geometry_msgs')
 
-from builtin_interfaces.msg import Time  # noqa: E402
-from mtrb_bringup.initial_pose_publisher import (  # noqa: E402
+from builtin_interfaces.msg import Time  # noqa: E402, I100
+from mtrb_bringup.initial_pose_publisher import (  # noqa: E402, I100, I201
     build_initial_pose, COVARIANCE_XY, COVARIANCE_YAW)
 
 

@@ -1,7 +1,7 @@
 """Style check (flake8, config in setup.cfg)."""
 
-import pytest
 from ament_flake8.main import main_with_errors
+import pytest
 
 
 @pytest.mark.flake8
