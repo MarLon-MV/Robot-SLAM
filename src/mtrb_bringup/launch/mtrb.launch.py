@@ -15,7 +15,7 @@ both publish map -> odom. The Create 3 publishes odom -> base_link; nothing here
 Every node runs in the robot namespace and remaps /tf and /tf_static to the relative
 names, so it uses /<ns>/tf and /<ns>/tf_static.
 
-Layout: one function per subsystem (_state_publisher, _ekf, _localization, _slam,
+Layout: one function per subsystem (_state_publisher, _lidar, _ekf, _localization, _slam,
 _navigation). _launch_setup only reads the arguments and picks which ones to start.
 """
 
@@ -123,6 +123,16 @@ def _state_publisher(s):
                   remappings=[('robot_description', 'mtrb_description')])]
 
 
+def _lidar(s):
+    """RPLIDAR C1 driver (sllidar_ros2) -> /<ns>/<scan_topic> in frame lidar_frame."""
+    if not is_true(s.get('lidar')):
+        return []
+    return [_node(s, 'sllidar_ros2', 'sllidar_node', 'sllidar_node',
+                  parameters=[_param_file(s, 'lidar_params_file'),
+                              {'frame_id': s.lidar_frame, 'serial_port': s.get('lidar_port')}],
+                  remappings=[('scan', s.scan_topic)])]
+
+
 def _ekf(s):
     """Create 3 odometry + IMU -> /<ns>/odometry/filtered."""
     if not s.use_ekf:
@@ -208,7 +218,7 @@ def _launch_setup(context):
     s = Settings.from_context(context)
     nav_params = _nav_params(s)
 
-    actions = _state_publisher(s) + _ekf(s)
+    actions = _state_publisher(s) + _lidar(s) + _ekf(s)
     # map -> odom: AMCL (map) or slam_toolbox (mapping), never both.
     actions += _localization(s, nav_params) if s.mode == 'map' else _slam(s)
     if is_true(s.get('navigation')):
@@ -255,13 +265,23 @@ def generate_launch_description():
         arg('ekf_publish_tf', default_value='false',
             description='EKF publishes odom -> base_link. Only if the Create 3 does not.'),
 
-        # LiDAR mount relative to base_link. TODO: real values.
+        # LiDAR: RPLIDAR C1 driver (sllidar_ros2).
+        arg('lidar', default_value='true',
+            description='Start the RPLIDAR C1 driver (false: run your own driver)'),
+        arg('lidar_port', default_value='/dev/ttyUSB0',
+            description='Serial port of the LiDAR (/dev/rplidar with the udev rule)'),
+        arg('lidar_params_file', default_value=param('lidar.yaml')),
         arg('lidar_frame', default_value='laser',
-            description='Must match the frame_id of the LiDAR driver'),
+            description='frame_id of the scans (set on the driver and in the URDF)'),
+
+        # LiDAR mount relative to base_link, at the scan plane. TODO: measure x/y/z.
+        # z = height of the mounting surface + 0.0298 m (C1 scan plane above its base).
         arg('lidar_x', default_value='0.0'),
         arg('lidar_y', default_value='0.0'),
         arg('lidar_z', default_value='0.1'),
-        arg('lidar_yaw', default_value='0.0', description='rad'),
+        # sllidar_ros2 publishes angle = pi - device angle, so with the C1 triangle
+        # pointing to the robot's front the laser frame is rotated by pi.
+        arg('lidar_yaw', default_value='3.14159265', description='rad'),
         arg('full_model', default_value='false',
             description='Publish the full Create 3 model too (duplicates its tf_static; '
                         'a visualizer only needs the description topic)'),

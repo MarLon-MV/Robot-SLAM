@@ -32,8 +32,8 @@ amcl:
     alpha4: 0.2
     alpha5: 0.2
     laser_model_type: "likelihood_field"
-    laser_max_range: 12.0           # TODO: set to the LiDAR's real max range
-    laser_min_range: -1.0
+    laser_max_range: 12.0           # RPLIDAR C1: 12 m (white), 6 m (black objects)
+    laser_min_range: 0.15           # same as slam_toolbox: ignore hits on the robot/mount
     laser_likelihood_max_dist: 2.0
     max_beams: 60
     sigma_hit: 0.2

@@ -1,0 +1,13 @@
+# RPLIDAR C1 (Slamtec) driver: sllidar_ros2 / sllidar_node.
+# Datasheet: TTL UART 460800 bps 8n1, 10 Hz typical (8-12 Hz), 5 kHz samples, 0.05-12 m.
+# frame_id and serial_port are injected by the launch file (lidar_frame:=, lidar_port:=).
+sllidar_node:
+  ros__parameters:
+    channel_type: serial
+    serial_port: /dev/ttyUSB0       # overridden by lidar_port:=
+    serial_baudrate: 460800         # C1 only works at 460800
+    frame_id: laser                 # overridden by lidar_frame:=
+    inverted: false                 # true only if the LiDAR is mounted upside down
+    angle_compensate: true          # fixed angular step (needed by slam_toolbox / AMCL)
+    scan_mode: Standard
+    scan_frequency: 10.0

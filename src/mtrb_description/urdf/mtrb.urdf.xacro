@@ -10,7 +10,7 @@
   <xacro:arg name="lidar_x"     default="0.0"/>
   <xacro:arg name="lidar_y"     default="0.0"/>
   <xacro:arg name="lidar_z"     default="0.1"/>
-  <xacro:arg name="lidar_yaw"   default="0.0"/>
+  <xacro:arg name="lidar_yaw"   default="${pi}"/>  <!-- sllidar_ros2: C1 triangle to the front -->
 
   <xacro:include filename="$(find mtrb_description)/urdf/sensors/lidar.urdf.xacro"/>
 

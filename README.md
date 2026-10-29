@@ -1,6 +1,7 @@
 # MTRB — ROS 2 Jazzy workspace
 
-iRobot Create 3 (firmware I.0.0.CycloneDDS, namespace `/r2`, dominio 21) + un LiDAR 2D, con Nav2.
+iRobot Create 3 (firmware I.0.0.CycloneDDS, namespace `/r2`, dominio 21) + LiDAR 2D
+[Slamtec RPLIDAR C1](https://cdn.robotshop.com/media/R/Rpk/RB-Rpk-35/pdf/rp-lidar-360-tof-lidar-datasheet.pdf), con Nav2.
 Se desarrolla en macOS y se despliega en una Raspberry Pi 5 (ROS 2 Jazzy nativo, sin Docker).
 
 ```
@@ -11,16 +12,17 @@ src/
 │   └── test/test_urdf.py
 └── mtrb_bringup/
     ├── launch/mtrb.launch.py    # único launch, mode:=map|mapping; una función por subsistema
-    ├── param/{nav2,ekf,slam_toolbox}.yaml
+    ├── param/{nav2,ekf,slam_toolbox,lidar}.yaml
     ├── map/
     ├── mtrb_bringup/utils.py                    # helpers puros (sin ROS), compartidos y testeados
     ├── mtrb_bringup/initial_pose_publisher.py   # publica la pose del dock en /r2/initialpose
     └── test/                    # unitarias, integración y lint
 env.sh
+mtrb.repos                       # código de terceros (driver sllidar_ros2) → vcs import
 ```
 
 Arquitectura del launch: `_launch_setup` lee los argumentos (`Settings`) y decide qué arrancar;
-cada subsistema (`_state_publisher`, `_ekf`, `_localization`, `_slam`, `_navigation`) devuelve
+cada subsistema (`_state_publisher`, `_lidar`, `_ekf`, `_localization`, `_slam`, `_navigation`) devuelve
 sus acciones. Todos los nodos se crean con `_node()`, que aplica namespace, remapeo de TF y
 `use_sim_time`. Para añadir un subsistema: escribe una función nueva y añádela en `_launch_setup`.
 
@@ -35,7 +37,7 @@ Sigue los pasos en orden la primera vez. Después, en el día a día, solo neces
 | --- | --- |
 | Raspberry Pi 5 | Ubuntu 24.04 (64 bits) + [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html) (`ros-jazzy-ros-base` basta), `git` |
 | iRobot Create 3 | Firmware **I.0.0.CycloneDDS** (o cualquier `I.x` con CycloneDDS) |
-| LiDAR 2D | Su driver de ROS 2 instalado en la Pi (no viene en este repositorio) |
+| RPLIDAR C1 | Conectado a la Pi por USB con su placa adaptadora (USB ↔ UART) |
 | Red | Pi y Create 3 en la **misma red Wi-Fi**, con multicast permitido |
 
 ### 1.2 Clonar el repositorio
@@ -47,9 +49,17 @@ directamente con el nombre que quieras darle al workspace:
 sudo apt install -y git
 git clone https://github.com/MarLon-MV/Robot-SLAM.git ~/mtrb_ws
 cd ~/mtrb_ws
+
+# Driver del RPLIDAR C1 (sllidar_ros2), que no está en apt: se descarga dentro de src/
+sudo apt install -y python3-vcstool
+vcs import src < mtrb.repos
 ```
 
-Para actualizar más adelante: `cd ~/mtrb_ws && git pull` y vuelve a compilar (paso 1.5).
+[mtrb.repos](mtrb.repos) lista el código de terceros que se compila en el workspace. La carpeta
+`src/sllidar_ros2/` está en `.gitignore`: no se sube a este repositorio.
+
+Para actualizar más adelante: `cd ~/mtrb_ws && git pull && vcs pull src` y vuelve a compilar
+(paso 1.5).
 
 ### 1.3 Instalar las dependencias
 
@@ -134,16 +144,68 @@ Si no sale nada:
 - Si tu red bloquea multicast (redes de universidad o empresa), configura `CYCLONEDDS_URI`
   con la IP del robot como peer (ver apartado 4).
 
-### 1.8 LiDAR
+### 1.8 LiDAR (RPLIDAR C1)
 
-El driver del LiDAR **no** está incluido: lánzalo en otra terminal (con `source env.sh`) de modo
-que:
+El launch arranca el driver (`sllidar_node`, de [sllidar_ros2](https://github.com/Slamtec/sllidar_ros2))
+y publica en `/r2/scan` con frame `laser`. Su configuración está en
+[param/lidar.yaml](src/mtrb_bringup/param/lidar.yaml): 460800 baudios (obligatorio en el C1),
+10 Hz, modo `Standard`.
 
-- publique en `/r2/scan` (o pasa otro nombre con `scan_topic:=` al launch), y
-- su `frame_id` sea igual a `lidar_frame` (por defecto `laser`).
+Datos del datasheet que usa el proyecto:
 
-Comprueba con `ros2 topic hz /r2/scan`. Mide la posición del LiDAR respecto al centro del robot
-y pásala con `lidar_x`, `lidar_y`, `lidar_z` y `lidar_yaw` (ver TODO).
+| Dato | Valor | Dónde se usa |
+| --- | --- | --- |
+| Rango | 0,05–12 m (6 m en objetos negros) | `laser_*_range` (AMCL, slam_toolbox) |
+| Frecuencia / muestras | 10 Hz, 5 kHz, 0,72° | `lidar.yaml` |
+| Puerto | UART 3,3 V, 460800 8n1, 5 V / ~260 mA | `lidar.yaml`, `lidar_port:=` |
+| Altura del plano de escaneo | 29,8 mm sobre la base del LiDAR | `lidar_z` |
+| Medidas | 55,6 × 55,6 × 41,3 mm, 110 g | URDF ([lidar.urdf.xacro](src/mtrb_description/urdf/sensors/lidar.urdf.xacro)) |
+
+**Primera conexión (una sola vez):**
+
+```bash
+# Permiso para usar el puerto serie (cierra sesión y vuelve a entrar después)
+sudo usermod -aG dialout $USER
+
+# Nombre fijo /dev/rplidar (si no, puede ser ttyUSB0, ttyUSB1… según el orden de conexión)
+cd ~/mtrb_ws/src/sllidar_ros2/scripts && sudo bash create_udev_rules.sh
+ls -l /dev/rplidar      # debe apuntar a ttyUSBx
+```
+
+Alimenta el LiDAR con una fuente que dé al menos **800 mA al arrancar**. Si el puerto USB no da
+suficiente corriente, el motor no alcanza velocidad y el LiDAR se apaga solo.
+
+**Montaje:** pon el triángulo de la tapa mirando al **frente** del robot, centrado si puedes.
+Mide desde el centro del Create 3 (entre las dos ruedas, a nivel del suelo):
+
+- `lidar_x`, `lidar_y`: posición del centro del LiDAR (x hacia delante, y hacia la izquierda).
+- `lidar_z`: altura de la superficie donde lo atornillas **+ 0,0298 m**.
+- `lidar_yaw`: déjalo en `3.14159265` (el valor por defecto). El driver publica los ángulos
+  girados 180° respecto al triángulo, y este valor lo compensa.
+
+**Probar solo el LiDAR** (sin Nav2):
+
+```bash
+ros2 launch mtrb_bringup mtrb.launch.py mode:=mapping navigation:=false \
+  lidar_port:=/dev/rplidar lidar_x:=0.0 lidar_z:=0.13
+ros2 topic hz /r2/scan          # ~10 Hz
+```
+
+Para comprobar la orientación, deja libre ~1 m alrededor, pon un objeto a ~0,3 m **delante**
+del robot y mira dónde está la lectura más corta:
+
+```bash
+ros2 topic echo --once --full-length /r2/scan --field ranges | grep -oE '[0-9]+\.[0-9]+|inf|nan' \
+  | LC_ALL=C awk '$1+0>0.05 {if(!m||$1+0<m){m=$1+0;i=NR}} END{print "min", m, "m en el índice", i, "de", NR}'
+```
+
+- Índice cerca del **principio o del final** del array (ángulo ±π del frame `laser`): correcto,
+  deja `lidar_yaw` por defecto.
+- Índice cerca de la **mitad** (ángulo 0): el driver ya está alineado con el triángulo, así que
+  usa `lidar_yaw:=0.0`.
+
+Si prefieres lanzar el driver por tu cuenta, pasa `lidar:=false`. Tu driver debe publicar en
+`/r2/scan` con `frame_id` igual a `lidar_frame`.
 
 ### 1.9 Desarrollo en macOS (opcional)
 
@@ -176,8 +238,8 @@ ros2 launch mtrb_bringup mtrb.launch.py mode:=mapping posegraph:=<ruta/base> \
 ```
 
 Argumentos útiles: `namespace` (r2), `navigation` (false = solo localizar/mapear), `use_ekf`,
-`scan_topic`, `odom_topic`, `imu_topic`, `lidar_frame`, `lidar_x/y/z/yaw`, `params_file`,
-`ekf_params_file`, `slam_params_file`, `use_sim_time`. Ver `ros2 launch mtrb_bringup mtrb.launch.py -s`.
+`scan_topic`, `odom_topic`, `imu_topic`, `lidar` (false = sin driver), `lidar_port`, `lidar_frame`,
+`lidar_x/y/z/yaw`, `params_file`, `ekf_params_file`, `slam_params_file`, `lidar_params_file`, `use_sim_time`. Ver `ros2 launch mtrb_bringup mtrb.launch.py -s`.
 Sin `map:=` se busca `map/map.yaml` del paquete instalado.
 
 Guardar mapas (con `mode:=mapping` en marcha; el directorio debe existir):
@@ -247,5 +309,15 @@ colcon test && colcon test-result --verbose
 
 ## 7. TODO
 
-`grep -rn TODO src/`: pose real del LiDAR (`lidar_*`), rangos mín/máx del LiDAR (AMCL, slam, costmaps),
-tuning de inflación/velocidades.
+`grep -rn TODO src/`: medir la posición real del LiDAR (`lidar_x/y/z`) y ponerla por defecto en el
+launch, ajustar inflación y velocidades.
+
+## 8. Fuentes
+
+- [Datasheet del RPLIDAR C1 (Slamtec, C1M1-R2 rev 1.0)](https://cdn.robotshop.com/media/R/Rpk/RB-Rpk-35/pdf/rp-lidar-360-tof-lidar-datasheet.pdf):
+  rango, frecuencia, puerto serie, alimentación, medidas y sistema de coordenadas.
+- [sllidar_ros2 (driver oficial de Slamtec)](https://github.com/Slamtec/sllidar_ros2): parámetros
+  del nodo, launch del C1, regla udev y conversión de ángulos (`lidar_yaw`).
+- [rplidar_ros en ROS Index](https://index.ros.org/r/rplidar_ros/) y
+  [su changelog para Jazzy](https://docs.ros.org/en/jazzy/p/rplidar_ros/__CHANGELOG.html):
+  estado del soporte del C1 en los paquetes de apt.

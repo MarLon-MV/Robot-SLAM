@@ -48,3 +48,13 @@ def test_full_model_has_every_create3_frame_and_no_simulation_tags():
     assert links(robot) == CREATE3_LINKS | {'laser'}
     assert robot.findall('gazebo') == []
     assert robot.findall('ros2_control') == []
+
+
+def test_lidar_frame_is_on_the_scan_plane_of_the_c1():
+    robot = render(lidar_only='true')
+    joint = robot.find("joint[@name='laser_joint']")
+    assert joint.find('origin').get('rpy').split()[2].startswith('3.14159')
+    base, head = robot.find("link[@name='laser']").findall('visual')
+    # Bottom of the base is 29.8 mm below the frame (scan plane).
+    base_z = float(base.find('origin').get('xyz').split()[2])
+    assert abs(base_z - (0.0231 / 2 - 0.0298)) < 1e-9
